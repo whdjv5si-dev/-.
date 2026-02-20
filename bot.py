@@ -26,7 +26,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 sys.excepthook = handle_exception
 
-TOKEN = "8587672080:AAHlGubM0ah_c1DTbYyIHh_tmRPvHxiSz68"
+TOKEN = "8558174666:AAGXt5Uhz-gNaVarCa2F2JFHKylsNrfAMQQ"
 ADMIN_ID = "8491314169"
 
 # ملفات التخزين
