@@ -8,10 +8,23 @@ from datetime import datetime
 import random
 import string
 import io
+import sys
+import traceback
 
 # إعداد التسجيل
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# معالجة الأخطاء غير المتوقعة
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    print("❌ خطأ غير متوقع:")
+    traceback.print_exception(exc_type, exc_value, exc_traceback)
+    logger.error("خطأ غير متوقع", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
 
 TOKEN = "8587672080:AAHlGubM0ah_c1DTbYyIHh_tmRPvHxiSz68"
 ADMIN_ID = "8491314169"
@@ -23,19 +36,25 @@ TEMPLATES_FILE = "templates_data.json"
 
 # إعدادات Thunkable
 THUNKABLE_API_URL = "https://api.thunkable.com/v1"
-THUNKABLE_API_KEY = "YOUR_THUNKABLE_API_KEY"  # استبدل هذا
-THUNKABLE_PROJECT_ID = "YOUR_PROJECT_ID"      # استبدل هذا
+THUNKABLE_API_KEY = "YOUR_THUNKABLE_API_KEY"
+THUNKABLE_PROJECT_ID = "YOUR_PROJECT_ID"
 
 # تحميل البيانات
 def load_data(filename):
-    if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"خطأ في تحميل {filename}: {e}")
     return {}
 
 def save_data(data, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"خطأ في حفظ {filename}: {e}")
 
 # القنوات المطلوبة
 REQUIRED_CHANNELS = [
@@ -293,4 +312,158 @@ APP_TEMPLATES = {
     }
 }
 
-# باقي الكود (جلسات المستخدمين والدوال) هي كما كانت...
+# جلسات المستخدمين
+user_sessions = {}
+
+# دالة إنشاء APK وهمي للتجربة
+def generate_fake_apk(app_data):
+    """توليد ملف APK وهمي للتجربة"""
+    fake_apk_content = f"""
+    هذا ملف APK وهمي للتطبيق: {app_data.get('app_name', 'تطبيق')}
+    تم إنشاؤه في: {datetime.now()}
+    البيانات: {json.dumps(app_data, ensure_ascii=False)}
+    """
+    return io.BytesIO(fake_apk_content.encode('utf-8'))
+
+# دالة إنشاء تطبيق حقيقي في Thunkable
+def create_app_on_thunkable(template, data):
+    try:
+        app_data = {
+            "name": data.get('app_name', 'تطبيق جديد'),
+            "template": template,
+            "settings": {
+                "primaryColor": data.get('اللون الرئيسي', '#3498db'),
+                "fields": data
+            },
+            "user_id": data.get('user_id'),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # للتجربة: نرجع نجاح وهمي
+        return {
+            "success": True,
+            "download_url": f"https://thunkable.com/download/{template}_{random.randint(1000,9999)}.apk",
+            "file_data": generate_fake_apk(app_data)
+        }
+    except Exception as e:
+        logger.error(f"خطأ في إنشاء التطبيق: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+# دالة البدء
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_id = str(update.effective_user.id)
+        users_data = load_data(USERS_FILE)
+        
+        if user_id not in users_data:
+            if user_id == ADMIN_ID:
+                users_data[user_id] = {
+                    'username': update.effective_user.username,
+                    'first_name': update.effective_user.first_name,
+                    'coins': 99999,
+                    'apps_created': 0,
+                    'joined_channels': [],
+                    'last_daily': None,
+                    'created_apps': [],
+                    'joined_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                users_data[user_id] = {
+                    'username': update.effective_user.username,
+                    'first_name': update.effective_user.first_name,
+                    'coins': 0,
+                    'apps_created': 0,
+                    'joined_channels': [],
+                    'last_daily': None,
+                    'created_apps': [],
+                    'joined_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            save_data(users_data, USERS_FILE)
+        
+        coins = users_data[user_id]['coins']
+        
+        welcome = f"""
+🎯 **مرحباً بك في بوت صناعة التطبيقات!**
+
+👤 **المستخدم:** {update.effective_user.first_name}
+💰 **رصيدك:** {coins} عملة
+
+**📋 الأقسام المتاحة:**
+/create - إنشاء تطبيق جديد
+/balance - رصيدي
+/help - تعليمات
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("📱 إنشاء تطبيق", callback_data="create_app")],
+            [InlineKeyboardButton("💰 رصيدي", callback_data="show_balance")],
+        ]
+        
+        if user_id == ADMIN_ID:
+            keyboard.append([InlineKeyboardButton("⚡ لوحة التحكم", callback_data="admin_panel")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(welcome, parse_mode='Markdown', reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"خطأ في دالة start: {e}")
+        await update.message.reply_text("❌ حدث خطأ. الرجاء المحاولة لاحقاً.")
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        data = query.data
+        user_id = str(update.effective_user.id)
+        
+        if data == "create_app":
+            await query.message.edit_text(
+                "📱 **اختر نوع التطبيق:**\n\n"
+                "سيتم إضافة القوالب قريباً...",
+                parse_mode='Markdown'
+            )
+        
+        elif data == "show_balance":
+            users_data = load_data(USERS_FILE)
+            coins = users_data.get(user_id, {}).get('coins', 0)
+            await query.message.edit_text(
+                f"💰 **رصيدك:** {coins} عملة",
+                parse_mode='Markdown'
+            )
+        
+        elif data == "admin_panel" and user_id == ADMIN_ID:
+            await query.message.edit_text(
+                "⚡ **لوحة تحكم المشرف**\n\n"
+                "عدد المستخدمين: قيد التطوير",
+                parse_mode='Markdown'
+            )
+        
+    except Exception as e:
+        logger.error(f"خطأ في button_handler: {e}")
+
+def main():
+    try:
+        print("🚀 جاري تشغيل البوت...")
+        
+        app = Application.builder().token(TOKEN).build()
+        
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CallbackQueryHandler(button_handler))
+        
+        print("✅ البوت جاهز للتشغيل")
+        print(f"👤 المشرف: {ADMIN_ID}")
+        print("📡 بدء استقبال الرسائل...")
+        
+        app.run_polling()
+        
+    except Exception as e:
+        print(f"❌ خطأ فادح: {e}")
+        traceback.print_exc()
+        logger.error("خطأ فادح في main", exc_info=True)
+
+if __name__ == '__main__':
+    main()
