@@ -584,8 +584,5 @@ def main():
     print(f"👑 المشرف (حسابك) لديه 99999 عملة")
     app.run_polling()
 
-# هذا السطر مهم لـ Gunicorn على Render
-application = app
-
 if __name__ == '__main__':
     main()
