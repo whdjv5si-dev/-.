@@ -30,11 +30,11 @@ def save_data(data, filename):
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# القنوات المطلوب الاشتراك فيها (ضع قنواتك هنا)
+# القنوات المطلوب الاشتراك فيها
 REQUIRED_CHANNELS = [
-    {'username': '@your_channel_1', 'name': 'قناة العروض 📢'},
-    {'username': '@your_channel_2', 'name': 'قناة الأخبار 📰'},
-    {'username': '@your_channel_3', 'name': 'قناة البرمجة 💻'}
+    {'username': '@gdch6', 'name': 'قناة gdch6 📢'},
+    {'username': '@OfficalDSMods', 'name': 'قناة OfficalDSMods 📢'},
+    {'username': '@torki02', 'name': 'قناة torki02 📢'}
 ]
 
 # قوالب التطبيقات مع التكلفة
@@ -574,15 +574,18 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
 
 def main():
-    application = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
     
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 بوت صانع التطبيقات مع نظام العملات يعمل...")
     print(f"👑 المشرف (حسابك) لديه 99999 عملة")
-    application.run_polling()
+    app.run_polling()
+
+# هذا السطر مهم لـ Gunicorn على Render
+application = app
 
 if __name__ == '__main__':
     main()
